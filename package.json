@@ -16,13 +16,22 @@
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target node",
     "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
     "test": "bun test",
+    "check": "bun run typecheck && bun run lint && bun run test",
     "dev": "bun src/index.ts",
     "start": "bun dist/index.js"
   },
   "license": "MIT",
   "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
     "@types/bun": "^1.4.4",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "zod": "^4.6.7"
   }
 }
