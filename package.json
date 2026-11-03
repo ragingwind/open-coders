@@ -1,0 +1,28 @@
+{
+  "name": "open-coders",
+  "version": "0.1.0",
+  "description": "The open-coders command-line tool.",
+  "type": "module",
+  "bin": {
+    "open-coders": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20",
+    "bun": ">=1.3.0"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "dev": "bun src/index.ts",
+    "start": "bun dist/index.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  }
+}
