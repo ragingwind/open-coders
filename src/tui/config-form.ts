@@ -86,13 +86,13 @@ export async function newProfileFlow(
   p.intro("open-coders config new");
 
   const agent = await promptAgent(flags.agent);
-  const name = await promptProfileName(config, flags.name);
   const protocol =
     agent === "opencode" ? await promptProtocol(flags.protocol, undefined) : undefined;
   const chosen = await promptProvider(config, agent, flags, protocol);
 
   const pool = await promptModelPool(chosen.provider, agent, protocol, ctx);
   const { selected, defaultModel } = await promptModelSelection(pool, chosen.provider.models);
+  const name = await promptProfileName(config, flags.name, agent, defaultModel);
 
   let roles: Partial<Record<ClaudeRole, string>> | undefined;
   let limits: Profile["limits"];
@@ -243,18 +243,35 @@ async function promptAgent(initial?: string): Promise<AgentId> {
   return choice;
 }
 
-export function suggestProfileName(config: Config): string {
-  let name = "default";
+export function suggestProfileName(config: Config, agent?: AgentId, model?: Model): string {
+  const base = model ? profileBaseFromModel(model, agent) : (agent ?? "profile");
+  const maximum = 64;
+  let candidate = base.slice(0, maximum).replace(/[-._]+$/, "");
   let suffix = 2;
-  while (config.profiles[name]) {
-    name = `default-${suffix}`;
+  while (config.profiles[candidate]) {
+    const suffixText = `-${suffix}`;
+    candidate = `${base.slice(0, maximum - suffixText.length).replace(/[-._]+$/, "")}${suffixText}`;
     suffix += 1;
   }
-  return name;
+  return candidate;
 }
 
-async function promptProfileName(config: Config, initial?: string): Promise<string> {
-  const suggested = initial ?? suggestProfileName(config);
+function profileBaseFromModel(model: Model, agent?: AgentId): string {
+  const id = model.id;
+  const lastSegment = id.includes("/") ? id.slice(id.lastIndexOf("/") + 1) : id;
+  const slug = slugModelKey(lastSegment);
+  if (slug === "model") return agent ?? "profile";
+  if (slug.length < 4 && agent) return `${agent}-${slug}`;
+  return slug;
+}
+
+async function promptProfileName(
+  config: Config,
+  initial: string | undefined,
+  agent: AgentId,
+  model: Model,
+): Promise<string> {
+  const suggested = initial ?? suggestProfileName(config, agent, model);
   return unwrap(
     await p.text({
       message: "Profile name",

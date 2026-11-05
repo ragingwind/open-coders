@@ -60,13 +60,26 @@ describe("roleAlternatives", () => {
 });
 
 describe("suggestProfileName", () => {
-  test("suggests default when it is free", () => {
-    expect(suggestProfileName(emptyConfig())).toBe("default");
+  test("uses the model name without the provider prefix", () => {
+    const config = emptyConfig();
+    expect(suggestProfileName(config, "opencode", model("glm", "zai-org/GLM-5.3-Flash"))).toBe(
+      "glm-5.3-flash",
+    );
   });
 
-  test("adds a suffix when default is taken", () => {
+  test("prefixes the agent for a very short model name", () => {
+    expect(suggestProfileName(emptyConfig(), "claude", model("m1", "m1"))).toBe("claude-m1");
+  });
+
+  test("falls back to the agent when the model has no usable name", () => {
+    expect(suggestProfileName(emptyConfig(), "fx", model("x", "한글"))).toBe("fx");
+  });
+
+  test("adds a suffix when the name is taken", () => {
     const config = emptyConfig();
-    config.profiles.default = makeProfile({ name: "default" });
-    expect(suggestProfileName(config)).toBe("default-2");
+    config.profiles["glm-5.3-flash"] = makeProfile({ name: "glm-5.3-flash" });
+    expect(suggestProfileName(config, "opencode", model("glm", "zai-org/GLM-5.3-Flash"))).toBe(
+      "glm-5.3-flash-2",
+    );
   });
 });
