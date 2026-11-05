@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { emptyConfig } from "../src/config/schema";
-import { mergeModels, providerIdFromName } from "../src/tui/config-form";
+import { mergeModels, providerIdFromName, roleAlternatives } from "../src/tui/config-form";
 import { makeProvider, model } from "./helpers";
 
 describe("providerIdFromName", () => {
@@ -38,5 +38,18 @@ describe("mergeModels", () => {
     const merged = mergeModels([model("m1", "a")], [model("m1", "b")]);
     expect(merged.map((entry) => entry.key)).toEqual(["m1", "m1-2"]);
     expect(merged[1]?.id).toBe("b");
+  });
+});
+
+describe("roleAlternatives", () => {
+  test("offers every model except the default", () => {
+    const first = model("m1", "a");
+    const second = model("m2", "b");
+    expect(roleAlternatives([first, second], first).map((entry) => entry.key)).toEqual(["m2"]);
+  });
+
+  test("returns nothing when the default is the only model", () => {
+    const only = model("m1", "a");
+    expect(roleAlternatives([only], only)).toEqual([]);
   });
 });

@@ -93,14 +93,19 @@ export async function newProfileFlow(
 
   const pool = await promptModelPool(chosen.provider, agent, protocol, ctx);
   const { selected, defaultModel } = await promptModelSelection(pool, chosen.provider.models);
-  const models = mergeModels(chosen.provider.models, selected);
 
   let roles: Partial<Record<ClaudeRole, string>> | undefined;
   let limits: Profile["limits"];
   if (agent === "claude") {
-    roles = await promptRoles(selected, defaultModel);
+    roles = await promptRoles(pool, defaultModel);
     limits = await promptLimits(defaultModel);
   }
+
+  const roleKeys = new Set(
+    Object.values(roles ?? {}).filter((key): key is string => typeof key === "string"),
+  );
+  const roleModels = pool.filter((model) => roleKeys.has(model.key));
+  const models = mergeModels(chosen.provider.models, [...selected, ...roleModels]);
 
   const env = await promptEnv(undefined);
 
@@ -629,11 +634,22 @@ async function promptModelKey(
   return model;
 }
 
+export function roleAlternatives(models: Model[], defaultModel: Model): Model[] {
+  return models.filter((model) => model.key !== defaultModel.key);
+}
+
 async function promptRoles(
   models: Model[],
   defaultModel: Model,
   existing?: Profile["roles"],
 ): Promise<Partial<Record<ClaudeRole, string>>> {
+  const alternatives = roleAlternatives(models, defaultModel);
+  if (alternatives.length === 0) {
+    p.log.info("모델이 하나뿐이라 role별 매핑을 건너뜁니다.");
+    return {};
+  }
+  p.log.info("role에 다른 모델을 지정하면 프로파일 모델 목록에 자동으로 추가됩니다.");
+
   const roles: Partial<Record<ClaudeRole, string>> = {};
   for (const role of CLAUDE_ROLES) {
     const current = existing?.[role] ?? "__default__";
@@ -646,13 +662,11 @@ async function promptRoles(
             label: "기본과 동일",
             hint: defaultModel.name ?? defaultModel.id,
           },
-          ...models
-            .filter((model) => model.key !== defaultModel.key)
-            .map((model) => ({
-              value: model.key,
-              label: model.name ?? model.id,
-              hint: model.id,
-            })),
+          ...alternatives.map((model) => ({
+            value: model.key,
+            label: model.name ?? model.id,
+            hint: model.id,
+          })),
         ],
         initialValue: models.some((model) => model.key === current) ? current : "__default__",
       }),
