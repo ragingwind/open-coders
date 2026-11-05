@@ -104,6 +104,69 @@ written with mode `0600`.
 - **fx**: only works with a `vercel-ai-gateway` provider. fx 0.0.5 cannot use a
   custom base URL, so custom gateways are not available through fx.
 
+## Local testing
+
+Bun runs the TypeScript sources directly, so no build step is needed while
+developing.
+
+```sh
+bun src/index.ts --version
+bun src/index.ts config list
+bun run dev -- config new        # same as: bun src/index.ts config new
+```
+
+Point `XDG_CONFIG_HOME` at a temporary directory so tests do not touch your real
+profiles:
+
+```sh
+export XDG_CONFIG_HOME=$(mktemp -d /tmp/open-coders-config.XXXXXX)
+bun src/index.ts config new
+bun src/index.ts config list
+```
+
+To launch a profile without starting the real agent, put a fake binary at the
+front of `PATH`:
+
+```sh
+mkdir -p /tmp/open-coders-bin
+printf '#!/bin/sh\nenv | grep ^ANTHROPIC_\nexit 0\n' > /tmp/open-coders-bin/claude
+chmod +x /tmp/open-coders-bin/claude
+
+PATH="/tmp/open-coders-bin:$PATH" GW_KEY=secret bun src/index.ts om
+```
+
+The interactive TUI needs a real terminal. Run `bun src/index.ts config new`
+from a terminal, or use the non-interactive flags shown above.
+
+### Test the packaged tarball
+
+This checks what npm consumers install, including the bin and bundled `dist`:
+
+```sh
+T=$(mktemp -d /tmp/open-coders-pkg.XXXXXX)
+npm pack --pack-destination "$T"   # prepack builds dist
+cd "$T"
+npm init -y
+npm install ./open-coders-0.1.0.tgz
+XDG_CONFIG_HOME="$T/config" ./node_modules/.bin/open-coders --version
+```
+
+For a link to the working tree instead of a tarball:
+
+```sh
+# in the repository
+bun link
+
+# in a scratch project
+S=$(mktemp -d /tmp/open-coders-link.XXXXXX)
+cd "$S"
+bun init -y
+bun link open-coders
+./node_modules/.bin/open-coders --version
+```
+
+Remove the global link with `bun unlink` from the repository.
+
 ## Development
 
 ```sh
