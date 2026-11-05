@@ -92,7 +92,15 @@ export async function newProfileFlow(
 
   const pool = await promptModelPool(chosen.provider, agent, protocol, ctx);
   const { selected, defaultModel } = await promptModelSelection(pool, chosen.provider.models);
-  const name = await promptProfileName(config, flags.name, agent, defaultModel);
+
+  const suggestion = suggestProfileName({
+    agent,
+    providerId: chosen.id,
+    modelId: defaultModel.id,
+    existing: Object.keys(config.profiles),
+  });
+  p.log.info(`Name suggested from ${suggestion.basis}.`);
+  const name = await promptProfileName(config, flags.name ?? suggestion.name);
 
   let roles: Partial<Record<ClaudeRole, string>> | undefined;
   let limits: Profile["limits"];
@@ -243,12 +251,58 @@ async function promptAgent(initial?: string): Promise<AgentId> {
   return choice;
 }
 
-export function suggestProfileName(config: Config, agent?: AgentId, model?: Model): string {
-  const base = model ? profileBaseFromModel(model, agent) : (agent ?? "profile");
+export interface ProfileNameSuggestion {
+  name: string;
+  basis: string;
+}
+
+export interface ProfileNameInput {
+  agent: AgentId;
+  providerId: string;
+  modelId?: string;
+  existing: Iterable<string>;
+}
+
+export function suggestProfileName(input: ProfileNameInput): ProfileNameSuggestion {
+  const existing = new Set(input.existing);
+  const tiers: ProfileNameSuggestion[] = [
+    { name: input.agent, basis: "agent" },
+    { name: `${input.agent}-${input.providerId}`, basis: "agent + provider" },
+  ];
+
+  const family = input.modelId ? modelFamily(input.modelId) : undefined;
+  if (family && family !== input.agent) {
+    tiers.push({
+      name: `${input.agent}-${input.providerId}-${family}`,
+      basis: "agent + provider + model family",
+    });
+  }
+
+  for (const tier of tiers) {
+    if (!existing.has(tier.name)) return tier;
+  }
+
+  const last = tiers[tiers.length - 1];
+  if (!last) return { name: input.agent, basis: "agent" };
+  return {
+    name: uniqueProfileName(last.name, existing),
+    basis: `${last.basis} + numeric suffix`,
+  };
+}
+
+export function modelFamily(modelId: string): string | undefined {
+  const last = modelId.includes("/") ? modelId.slice(modelId.lastIndexOf("/") + 1) : modelId;
+  return last
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .find((part) => part.length >= 2 && !/^\d+$/.test(part));
+}
+
+function uniqueProfileName(base: string, existing: Set<string>): string {
   const maximum = 64;
   let candidate = base.slice(0, maximum).replace(/[-._]+$/, "");
   let suffix = 2;
-  while (config.profiles[candidate]) {
+  while (existing.has(candidate)) {
     const suffixText = `-${suffix}`;
     candidate = `${base.slice(0, maximum - suffixText.length).replace(/[-._]+$/, "")}${suffixText}`;
     suffix += 1;
@@ -256,22 +310,7 @@ export function suggestProfileName(config: Config, agent?: AgentId, model?: Mode
   return candidate;
 }
 
-function profileBaseFromModel(model: Model, agent?: AgentId): string {
-  const id = model.id;
-  const lastSegment = id.includes("/") ? id.slice(id.lastIndexOf("/") + 1) : id;
-  const slug = slugModelKey(lastSegment);
-  if (slug === "model") return agent ?? "profile";
-  if (slug.length < 4 && agent) return `${agent}-${slug}`;
-  return slug;
-}
-
-async function promptProfileName(
-  config: Config,
-  initial: string | undefined,
-  agent: AgentId,
-  model: Model,
-): Promise<string> {
-  const suggested = initial ?? suggestProfileName(config, agent, model);
+async function promptProfileName(config: Config, suggested: string): Promise<string> {
   return unwrap(
     await p.text({
       message: "Profile name",

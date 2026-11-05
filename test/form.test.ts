@@ -2,11 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { emptyConfig } from "../src/config/schema";
 import {
   mergeModels,
+  modelFamily,
   providerIdFromName,
   roleAlternatives,
   suggestProfileName,
 } from "../src/tui/config-form";
-import { makeProfile, makeProvider, model } from "./helpers";
+import { makeProvider, model } from "./helpers";
 
 describe("providerIdFromName", () => {
   test("slugifies a display name", () => {
@@ -60,26 +61,67 @@ describe("roleAlternatives", () => {
 });
 
 describe("suggestProfileName", () => {
-  test("uses the model name without the provider prefix", () => {
-    const config = emptyConfig();
-    expect(suggestProfileName(config, "opencode", model("glm", "zai-org/GLM-5.3-Flash"))).toBe(
-      "glm-5.3-flash",
-    );
+  test("uses the agent first", () => {
+    expect(suggestProfileName({ agent: "claude", providerId: "continuum", existing: [] })).toEqual({
+      name: "claude",
+      basis: "agent",
+    });
   });
 
-  test("prefixes the agent for a very short model name", () => {
-    expect(suggestProfileName(emptyConfig(), "claude", model("m1", "m1"))).toBe("claude-m1");
+  test("adds the provider when the agent name is taken", () => {
+    expect(
+      suggestProfileName({ agent: "claude", providerId: "continuum", existing: ["claude"] }),
+    ).toEqual({ name: "claude-continuum", basis: "agent + provider" });
   });
 
-  test("falls back to the agent when the model has no usable name", () => {
-    expect(suggestProfileName(emptyConfig(), "fx", model("x", "한글"))).toBe("fx");
+  test("adds the model family when agent and provider names are taken", () => {
+    expect(
+      suggestProfileName({
+        agent: "claude",
+        providerId: "continuum",
+        modelId: "DeepSeek-V4.1-Flash-B300",
+        existing: ["claude", "claude-continuum"],
+      }),
+    ).toEqual({
+      name: "claude-continuum-deepseek",
+      basis: "agent + provider + model family",
+    });
   });
 
-  test("adds a suffix when the name is taken", () => {
-    const config = emptyConfig();
-    config.profiles["glm-5.3-flash"] = makeProfile({ name: "glm-5.3-flash" });
-    expect(suggestProfileName(config, "opencode", model("glm", "zai-org/GLM-5.3-Flash"))).toBe(
-      "glm-5.3-flash-2",
-    );
+  test("skips a model family that repeats the agent", () => {
+    expect(
+      suggestProfileName({
+        agent: "claude",
+        providerId: "continuum",
+        modelId: "anthropic/claude-sonnet-5.5",
+        existing: ["claude", "claude-continuum"],
+      }),
+    ).toEqual({ name: "claude-continuum-2", basis: "agent + provider + numeric suffix" });
+  });
+
+  test("appends a numeric suffix when every tier is taken", () => {
+    expect(
+      suggestProfileName({
+        agent: "opencode",
+        providerId: "gw",
+        modelId: "glm-5",
+        existing: ["opencode", "opencode-gw", "opencode-gw-glm"],
+      }),
+    ).toEqual({
+      name: "opencode-gw-glm-2",
+      basis: "agent + provider + model family + numeric suffix",
+    });
+  });
+});
+
+describe("modelFamily", () => {
+  test("takes the first meaningful token of the last path segment", () => {
+    expect(modelFamily("zai-org/GLM-5.3-Flash")).toBe("glm");
+    expect(modelFamily("DeepSeek-V4.1-Flash-B300")).toBe("deepseek");
+    expect(modelFamily("anthropic/claude-sonnet-5.5")).toBe("claude");
+  });
+
+  test("returns undefined for a numeric-only id", () => {
+    expect(modelFamily("1234")).toBeUndefined();
   });
 });
