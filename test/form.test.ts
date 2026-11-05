@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { emptyConfig } from "../src/config/schema";
-import { mergeModels, providerIdFromName, roleAlternatives } from "../src/tui/config-form";
-import { makeProvider, model } from "./helpers";
+import {
+  mergeModels,
+  providerIdFromName,
+  roleAlternatives,
+  suggestProfileName,
+} from "../src/tui/config-form";
+import { makeProfile, makeProvider, model } from "./helpers";
 
 describe("providerIdFromName", () => {
   test("slugifies a display name", () => {
@@ -51,5 +56,17 @@ describe("roleAlternatives", () => {
   test("returns nothing when the default is the only model", () => {
     const only = model("m1", "a");
     expect(roleAlternatives([only], only)).toEqual([]);
+  });
+});
+
+describe("suggestProfileName", () => {
+  test("suggests default when it is free", () => {
+    expect(suggestProfileName(emptyConfig())).toBe("default");
+  });
+
+  test("adds a suffix when default is taken", () => {
+    const config = emptyConfig();
+    config.profiles.default = makeProfile({ name: "default" });
+    expect(suggestProfileName(config)).toBe("default-2");
   });
 });

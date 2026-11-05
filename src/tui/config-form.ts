@@ -122,9 +122,9 @@ export async function newProfileFlow(
 
   const provider = { ...chosen.provider, models };
 
-  p.note(summaryFor(profile, provider, defaultModel), "요약");
+  p.note(summaryFor(profile, provider, defaultModel), "Summary");
   if (!skipConfirm) {
-    const confirmed = unwrap(await p.confirm({ message: "저장할까요?" }));
+    const confirmed = unwrap(await p.confirm({ message: "Save this profile?" }));
     if (!confirmed) throw new CancelledError();
   }
 
@@ -148,24 +148,24 @@ export async function updateProfileFlow(
 
   const field = unwrap(
     await p.select({
-      message: "무엇을 수정할까요?",
+      message: "What do you want to change?",
       options: [
-        { value: "model", label: "기본 모델" },
+        { value: "model", label: "Default model" },
         ...(profile.agent === "claude"
           ? [
-              { value: "roles", label: "role별 모델 (fable/opus/sonnet/haiku)" },
-              { value: "limits", label: "컨텍스트/출력 한도" },
+              { value: "roles", label: "Role models (fable/opus/sonnet/haiku)" },
+              { value: "limits", label: "Context/output limits" },
             ]
           : []),
-        { value: "models", label: "모델 목록 다시 가져오기" },
-        { value: "provider", label: "프로바이더 설정 (모든 프로파일에 영향)" },
-        { value: "env", label: "추가 환경변수" },
+        { value: "models", label: "Re-fetch the model list" },
+        { value: "provider", label: "Provider settings (affects all profiles)" },
+        { value: "env", label: "Extra environment variables" },
       ],
     }),
   );
 
   if (field === "model") {
-    const model = await promptModelKey(provider, profile.model, "기본 모델");
+    const model = await promptModelKey(provider, profile.model, "Default model");
     profile.model = model.key;
   } else if (field === "roles") {
     const selected = provider.models;
@@ -185,7 +185,7 @@ export async function updateProfileFlow(
     const merged = mergeModels(provider.models, fetched);
     const selected = unwrap(
       await p.autocompleteMultiselect({
-        message: "프로바이더에 저장할 모델",
+        message: "Models to store in the provider",
         options: merged.map((model) => ({
           value: model.key,
           label: model.name ?? model.id,
@@ -193,7 +193,7 @@ export async function updateProfileFlow(
         })),
         initialValues: merged.map((model) => model.key),
         required: true,
-        placeholder: "모델 이름 검색",
+        placeholder: "Search models",
         maxItems: 12,
       }),
     );
@@ -231,7 +231,7 @@ export async function updateProfileFlow(
 async function promptAgent(initial?: string): Promise<AgentId> {
   const choice = unwrap(
     await p.select<AgentId>({
-      message: "에이전트",
+      message: "Agent",
       options: [
         { value: "claude", label: "Claude Code", hint: "Anthropic-compatible gateway" },
         { value: "opencode", label: "OpenCode", hint: "Anthropic or OpenAI-compatible" },
@@ -243,19 +243,30 @@ async function promptAgent(initial?: string): Promise<AgentId> {
   return choice;
 }
 
+export function suggestProfileName(config: Config): string {
+  let name = "default";
+  let suffix = 2;
+  while (config.profiles[name]) {
+    name = `default-${suffix}`;
+    suffix += 1;
+  }
+  return name;
+}
+
 async function promptProfileName(config: Config, initial?: string): Promise<string> {
+  const suggested = initial ?? suggestProfileName(config);
   return unwrap(
     await p.text({
-      message: "프로파일 이름",
-      placeholder: "예: om",
-      ...(initial ? { initialValue: initial } : {}),
+      message: "Profile name",
+      placeholder: suggested,
+      defaultValue: suggested,
       validate(value) {
-        if (!value) return "프로파일 이름을 입력하세요";
+        if (!value) return "Enter a profile name";
         if (RESERVED_PROFILE_NAMES.has(value)) return `"${value}" is reserved`;
         if (!PROFILE_NAME_PATTERN.test(value)) {
-          return "영문/숫자로 시작하고 영문, 숫자, '.', '_', '-'만 사용할 수 있습니다";
+          return 'Use letters, digits, ".", "_" or "-", starting with a letter or digit';
         }
-        if (config.profiles[value]) return `profile "${value}" already exists`;
+        if (config.profiles[value]) return `Profile "${value}" already exists`;
         return undefined;
       },
     }),
@@ -281,14 +292,14 @@ async function promptProvider(
   if (compatible.length > 0) {
     const choice = unwrap(
       await p.select({
-        message: "프로바이더",
+        message: "Provider",
         options: [
           ...compatible.map(([id, provider]) => ({
             value: id,
             label: `${provider.name} (${id})`,
             hint: provider.kind,
           })),
-          { value: "__new__", label: "+ 새 프로바이더 만들기" },
+          { value: "__new__", label: "+ Create a new provider" },
         ],
       }),
     );
@@ -301,9 +312,10 @@ async function promptProvider(
 
   const name = unwrap(
     await p.text({
-      message: "새 프로바이더 이름",
-      placeholder: "예: Lablup Continuum",
-      validate: (value) => (value ? undefined : "이름을 입력하세요"),
+      message: "New provider name",
+      placeholder: "My Gateway",
+      defaultValue: "My Gateway",
+      validate: (value) => (value ? undefined : "Enter a name"),
     }),
   );
   const id = providerIdFromName(name, config);
@@ -327,7 +339,7 @@ async function promptNewProviderDetails(
   if (agent === "claude") {
     endpoints.anthropic = unwrap(
       await p.text({
-        message: "Anthropic 엔드포인트 (Claude Code 형식, /v1 없이)",
+        message: "Anthropic endpoint (Claude Code format, without /v1)",
         placeholder: "https://api.example.com/anthropic",
         ...(flags.baseUrlAnthropic ? { initialValue: flags.baseUrlAnthropic } : {}),
         validate: validateUrl,
@@ -335,7 +347,7 @@ async function promptNewProviderDetails(
     );
     const openai = unwrap(
       await p.text({
-        message: "OpenAI-compatible 엔드포인트 (선택, /v1 포함)",
+        message: "OpenAI-compatible endpoint (optional, includes /v1)",
         placeholder: "https://api.example.com/v1",
         ...(flags.baseUrlOpenai ? { initialValue: flags.baseUrlOpenai } : {}),
         validate: optionalUrl,
@@ -348,8 +360,8 @@ async function promptNewProviderDetails(
       await p.text({
         message:
           selectedProtocol === "anthropic"
-            ? "Anthropic 엔드포인트 (Claude Code 형식, /v1 없이)"
-            : "OpenAI-compatible 엔드포인트 (/v1 포함)",
+            ? "Anthropic endpoint (Claude Code format, without /v1)"
+            : "OpenAI-compatible endpoint (includes /v1)",
         placeholder:
           selectedProtocol === "anthropic"
             ? "https://api.example.com/anthropic"
@@ -375,9 +387,9 @@ async function promptNewProviderDetails(
 async function promptProviderDetails(provider: Provider, agent: AgentId): Promise<Provider> {
   const name = unwrap(
     await p.text({
-      message: "프로바이더 이름",
+      message: "Provider name",
       initialValue: provider.name,
-      validate: (value) => (value ? undefined : "이름을 입력하세요"),
+      validate: (value) => (value ? undefined : "Enter a name"),
     }),
   );
 
@@ -389,7 +401,7 @@ async function promptProviderDetails(provider: Provider, agent: AgentId): Promis
   const endpoints: Provider["endpoints"] = {};
   const anthropic = unwrap(
     await p.text({
-      message: "Anthropic 엔드포인트 (선택, /v1 없이)",
+      message: "Anthropic endpoint (optional, without /v1)",
       placeholder: "https://api.example.com/anthropic",
       ...(provider.endpoints.anthropic ? { initialValue: provider.endpoints.anthropic } : {}),
       validate: optionalUrl,
@@ -399,7 +411,7 @@ async function promptProviderDetails(provider: Provider, agent: AgentId): Promis
 
   const openai = unwrap(
     await p.text({
-      message: "OpenAI-compatible 엔드포인트 (선택, /v1 포함)",
+      message: "OpenAI-compatible endpoint (optional, includes /v1)",
       placeholder: "https://api.example.com/v1",
       ...(provider.endpoints.openaiCompatible
         ? { initialValue: provider.endpoints.openaiCompatible }
@@ -419,15 +431,15 @@ async function promptProviderDetails(provider: Provider, agent: AgentId): Promis
 async function promptAuth(agent: AgentId, envDefault?: string): Promise<Auth> {
   const style = unwrap(
     await p.select<"bearer" | "x-api-key" | "none">({
-      message: "인증 방식",
+      message: "Authentication",
       options: [
         {
           value: "bearer",
           label: "Authorization: Bearer",
-          hint: "프록시 게이트웨이의 일반적인 방식",
+          hint: "Common for proxy gateways",
         },
-        { value: "x-api-key", label: "x-api-key", hint: "Anthropic 스타일 헤더" },
-        { value: "none", label: "인증 없음", hint: "로컬 게이트웨이" },
+        { value: "x-api-key", label: "x-api-key", hint: "Anthropic-style header" },
+        { value: "none", label: "No authentication", hint: "Local gateway" },
       ],
     }),
   );
@@ -436,27 +448,30 @@ async function promptAuth(agent: AgentId, envDefault?: string): Promise<Auth> {
 
   const source = unwrap(
     await p.select<"env" | "literal">({
-      message: "키 저장 방식",
+      message: "Credential storage",
       options: [
         {
           value: "env",
-          label: "환경변수 이름만 저장",
-          hint: "권장. 키 값은 config에 남지 않습니다",
+          label: "Environment variable name",
+          hint: "Recommended. The key stays out of config.json",
         },
-        { value: "literal", label: "config에 직접 저장", hint: "파일 권한 0600, 평문 저장" },
+        { value: "literal", label: "Store in config.json", hint: "Plaintext, file mode 0600" },
       ],
     }),
   );
 
   if (source === "env") {
+    const suggested = envDefault ?? (agent === "fx" ? "AI_GATEWAY_API_KEY" : "GATEWAY_API_KEY");
     const name = unwrap(
       await p.text({
-        message: "환경변수 이름",
-        placeholder: agent === "fx" ? "AI_GATEWAY_API_KEY" : "MY_GATEWAY_API_KEY",
-        ...(envDefault ? { initialValue: envDefault } : {}),
+        message: "Environment variable name",
+        placeholder: suggested,
+        defaultValue: suggested,
         validate(value) {
-          if (!value) return "환경변수 이름을 입력하세요";
-          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) return "올바른 환경변수 이름이 아닙니다";
+          if (!value) return "Enter an environment variable name";
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+            return "Not a valid environment variable name";
+          }
           return undefined;
         },
       }),
@@ -469,11 +484,11 @@ async function promptAuth(agent: AgentId, envDefault?: string): Promise<Auth> {
 
   const value = unwrap(
     await p.password({
-      message: "API 키",
-      validate: (input) => (input ? undefined : "키를 입력하세요"),
+      message: "API key",
+      validate: (input) => (input ? undefined : "Enter an API key"),
     }),
   );
-  p.log.warn("키가 config.json에 평문으로 저장됩니다. 파일 권한을 0600으로 유지하세요.");
+  p.log.warn("The key will be stored in plaintext in config.json. Keep the file mode at 0600.");
   const credential: Credential = { source: "literal", value };
   return style === "bearer" ? { style: "bearer", credential } : { style: "x-api-key", credential };
 }
@@ -489,17 +504,17 @@ async function promptProtocol(
       : "anthropic";
   return unwrap(
     await p.select<Protocol>({
-      message: "OpenCode 프로토콜",
+      message: "OpenCode protocol",
       options: [
         {
           value: "openai-compatible",
           label: "OpenAI-compatible",
-          hint: "기본값. 대부분의 커스텀 게이트웨이",
+          hint: "Default. Most custom gateways",
         },
         {
           value: "anthropic",
           label: "Anthropic Messages",
-          hint: "baseURL에 /v1을 붙여 전달합니다",
+          hint: "The adapter appends /v1 to the base URL",
         },
       ],
       initialValue: preferred,
@@ -515,11 +530,11 @@ async function promptModelPool(
 ): Promise<Model[]> {
   const credential = lookupSecret(provider.auth, ctx.env).value;
   if (!credential && provider.auth.style !== "none") {
-    p.log.warn("API 키를 찾지 못해 모델 목록을 인증 없이 요청합니다.");
+    p.log.warn("No API key found; requesting the model list without authentication.");
   }
 
   const spinner = p.spinner();
-  spinner.start("모델 목록을 가져오는 중");
+  spinner.start("Fetching models");
   try {
     const protocolForFetch: Protocol =
       agent === "claude"
@@ -533,16 +548,16 @@ async function promptModelPool(
       credential,
       fetchImpl: ctx.fetchImpl,
     });
-    spinner.stop(`모델 ${fetched.length}개를 가져왔습니다`);
+    spinner.stop(`Fetched ${fetched.length} model${fetched.length === 1 ? "" : "s"}`);
     return mergeModels(provider.models, fetched);
   } catch (error) {
-    spinner.stop("모델 목록을 가져오지 못했습니다");
+    spinner.stop("Could not fetch the model list");
     p.log.warn(error instanceof Error ? error.message : String(error));
     const manual = unwrap(
       await p.text({
-        message: "모델 ID를 쉼표로 구분해 입력하세요",
+        message: "Enter model IDs separated by commas",
         placeholder: "model-a, model-b",
-        validate: (value) => (value ? undefined : "모델 ID를 입력하세요"),
+        validate: (value) => (value ? undefined : "Enter at least one model ID"),
       }),
     );
     const ids = manual
@@ -574,7 +589,7 @@ async function promptModelSelection(
   } else {
     selectedKeys = unwrap(
       await p.autocompleteMultiselect<string>({
-        message: "저장할 모델을 선택하세요 (스페이스: 선택, 엔터: 확정)",
+        message: "Select models to save (Space: select, Enter: confirm)",
         options: pool.map((model) => ({
           value: model.key,
           label: model.name ?? model.id,
@@ -582,7 +597,7 @@ async function promptModelSelection(
         })),
         initialValues,
         required: true,
-        placeholder: "모델 이름 검색",
+        placeholder: "Search models",
         maxItems: 12,
       }),
     );
@@ -597,7 +612,7 @@ async function promptModelSelection(
       ? firstSelected.key
       : unwrap(
           await p.select<string>({
-            message: "기본 모델",
+            message: "Default model",
             options: selected.map((model) => ({
               value: model.key,
               label: model.name ?? model.id,
@@ -645,21 +660,21 @@ async function promptRoles(
 ): Promise<Partial<Record<ClaudeRole, string>>> {
   const alternatives = roleAlternatives(models, defaultModel);
   if (alternatives.length === 0) {
-    p.log.info("모델이 하나뿐이라 role별 매핑을 건너뜁니다.");
+    p.log.info("Only one model is available; skipping role mapping.");
     return {};
   }
-  p.log.info("role에 다른 모델을 지정하면 프로파일 모델 목록에 자동으로 추가됩니다.");
+  p.log.info("Role models you pick are added to the profile's model list automatically.");
 
   const roles: Partial<Record<ClaudeRole, string>> = {};
   for (const role of CLAUDE_ROLES) {
     const current = existing?.[role] ?? "__default__";
     const choice = unwrap(
       await p.select<string>({
-        message: `${role} 모델`,
+        message: `${role} model`,
         options: [
           {
             value: "__default__",
-            label: "기본과 동일",
+            label: "Same as default",
             hint: defaultModel.name ?? defaultModel.id,
           },
           ...alternatives.map((model) => ({
@@ -682,7 +697,7 @@ async function promptLimits(
 ): Promise<NonNullable<Profile["limits"]>> {
   const wanted = unwrap(
     await p.confirm({
-      message: "컨텍스트/출력 한도를 설정할까요?",
+      message: "Set context/output limits?",
       initialValue: Boolean(existing?.maxContextTokens || existing?.maxOutputTokens),
     }),
   );
@@ -694,8 +709,8 @@ async function promptLimits(
 
   const context = unwrap(
     await p.text({
-      message: "최대 컨텍스트 토큰 (빈 값: 미설정)",
-      placeholder: contextDefault ? String(contextDefault) : "예: 200000",
+      message: "Max context tokens (empty: unset)",
+      placeholder: contextDefault ? String(contextDefault) : "e.g. 200000",
       defaultValue: contextDefault ? String(contextDefault) : "",
     }),
   );
@@ -704,8 +719,8 @@ async function promptLimits(
 
   const output = unwrap(
     await p.text({
-      message: "최대 출력 토큰 (빈 값: 미설정)",
-      placeholder: outputDefault ? String(outputDefault) : "예: 8192",
+      message: "Max output tokens (empty: unset)",
+      placeholder: outputDefault ? String(outputDefault) : "e.g. 8192",
       defaultValue: outputDefault ? String(outputDefault) : "",
     }),
   );
@@ -714,7 +729,7 @@ async function promptLimits(
 
   const disableCompact = unwrap(
     await p.confirm({
-      message: "자동 압축을 끌까요? (DISABLE_COMPACT=1)",
+      message: "Disable automatic compaction? (DISABLE_COMPACT=1)",
       initialValue: existing?.disableCompact ?? false,
     }),
   );
@@ -727,7 +742,7 @@ async function promptEnv(existing?: Record<string, string>): Promise<Record<stri
   const env: Record<string, string> = { ...(existing ?? {}) };
   if (existing && Object.keys(existing).length > 0) {
     p.log.info(
-      `현재 값: ${Object.keys(existing)
+      `Current values: ${Object.keys(existing)
         .map((key) => `${key}=...`)
         .join(", ")}`,
     );
@@ -736,7 +751,7 @@ async function promptEnv(existing?: Record<string, string>): Promise<Record<stri
   while (true) {
     const line = unwrap(
       await p.text({
-        message: "추가 환경변수 KEY=VALUE (빈 값이면 종료)",
+        message: "Extra environment variable KEY=VALUE (empty to finish)",
         placeholder: "KEY=VALUE",
         defaultValue: "",
       }),
@@ -744,7 +759,7 @@ async function promptEnv(existing?: Record<string, string>): Promise<Record<stri
     if (!line) break;
     const index = line.indexOf("=");
     if (index <= 0) {
-      p.log.warn("KEY=VALUE 형식이 아닙니다");
+      p.log.warn("Expected KEY=VALUE");
       continue;
     }
     env[line.slice(0, index).trim()] = line.slice(index + 1);
@@ -793,13 +808,13 @@ function isProtocol(value: string | undefined): value is Protocol {
 }
 
 function validateUrl(value: string | undefined): string | undefined {
-  if (!value) return "URL을 입력하세요";
+  if (!value) return "Enter a URL";
   try {
     const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "http(s) URL이어야 합니다";
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "Must be an http(s) URL";
     return undefined;
   } catch {
-    return "올바른 URL이 아닙니다";
+    return "Invalid URL";
   }
 }
 

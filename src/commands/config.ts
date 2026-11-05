@@ -49,16 +49,16 @@ async function configMenu(ctx: CliContext): Promise<number> {
     await p.select({
       message: "open-coders config",
       options: [
-        { value: "new", label: "새 프로파일 만들기" },
+        { value: "new", label: "Create a profile" },
         ...(names.length > 0
           ? [
-              { value: "update", label: "프로파일 수정" },
-              { value: "show", label: "프로파일 보기" },
-              { value: "delete", label: "프로파일 삭제" },
+              { value: "update", label: "Edit a profile" },
+              { value: "show", label: "Show a profile" },
+              { value: "delete", label: "Delete a profile" },
             ]
           : []),
-        { value: "list", label: "목록" },
-        { value: "quit", label: "종료" },
+        { value: "list", label: "List profiles" },
+        { value: "quit", label: "Quit" },
       ],
     }),
   );
@@ -72,7 +72,7 @@ async function configMenu(ctx: CliContext): Promise<number> {
 
   const name = unwrap(
     await p.select({
-      message: "프로파일",
+      message: "Profile",
       options: names.map((entry) => ({ value: entry, label: entry })),
     }),
   );

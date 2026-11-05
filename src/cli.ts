@@ -81,7 +81,7 @@ async function withoutArguments(ctx: CliContext): Promise<number> {
 
   const name = unwrap(
     await p.select({
-      message: "실행할 프로파일",
+      message: "Profile to launch",
       options: names.map((entry) => ({ value: entry, label: entry })),
     }),
   );
