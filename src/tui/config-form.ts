@@ -229,7 +229,7 @@ async function promptAgent(initial?: string): Promise<AgentId> {
       message: "에이전트",
       options: [
         { value: "claude", label: "Claude Code", hint: "Anthropic-compatible gateway" },
-        { value: "opencode", label: "opencode", hint: "Anthropic or OpenAI-compatible" },
+        { value: "opencode", label: "OpenCode", hint: "Anthropic or OpenAI-compatible" },
         { value: "fx", label: "Vercel fx", hint: "Vercel AI Gateway only" },
       ],
       ...(isAgent(initial) ? { initialValue: initial } : {}),
@@ -484,7 +484,7 @@ async function promptProtocol(
       : "anthropic";
   return unwrap(
     await p.select<Protocol>({
-      message: "opencode 프로토콜",
+      message: "OpenCode 프로토콜",
       options: [
         {
           value: "openai-compatible",

@@ -1,7 +1,8 @@
 # open-coders
 
 Launch coding agents against a custom gateway and model with named profiles.
-Supported agents: Claude Code (`claude`), opencode, and Vercel `fx`.
+Supported agents: Claude Code (`claude`), OpenCode (`opencode`), and Vercel
+`fx`.
 
 ## Requirements
 
@@ -98,9 +99,9 @@ written with mode `0600`.
   `ANTHROPIC_DEFAULT_*_MODEL` variables. `limits` map to
   `CLAUDE_CODE_MAX_CONTEXT_TOKENS`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, and
   `DISABLE_COMPACT`.
-- **opencode**: `protocol` is `openai-compatible` (default) or `anthropic`.
+- **OpenCode**: `protocol` is `openai-compatible` (default) or `anthropic`.
   The provider and model list are injected through `OPENCODE_CONFIG_CONTENT`;
-  no opencode config file is modified.
+  no OpenCode config file is modified.
 - **fx**: only works with a `vercel-ai-gateway` provider. fx 0.0.5 cannot use a
   custom base URL, so custom gateways are not available through fx.
 

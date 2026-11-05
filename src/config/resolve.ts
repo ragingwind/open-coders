@@ -145,7 +145,7 @@ export function assertCompatible(profile: Profile, provider: Provider): void {
       protocol === "anthropic" ? provider.endpoints.anthropic : provider.endpoints.openaiCompatible;
     if (provider.kind !== "custom" || !endpoint) {
       throw new ConfigError(
-        `profile "${profile.name}" runs opencode, which needs a custom provider with a ${protocol} endpoint`,
+        `profile "${profile.name}" runs OpenCode, which needs a custom provider with a ${protocol} endpoint`,
       );
     }
     return;

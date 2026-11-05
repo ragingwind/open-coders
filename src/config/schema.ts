@@ -198,7 +198,7 @@ export function validateConfig(config: Config): Problem[] {
       if (provider.kind !== "custom" || !endpoint) {
         problems.push({
           path: `profiles.${name}.protocol`,
-          message: `opencode requires a custom provider with a ${protocol} endpoint`,
+          message: `OpenCode requires a custom provider with a ${protocol} endpoint`,
         });
       }
     } else if (profile.agent === "fx") {
