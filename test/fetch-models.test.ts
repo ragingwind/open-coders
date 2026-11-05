@@ -90,6 +90,48 @@ describe("fetchModels", () => {
     expect(versions).toEqual(["2023-06-01", "2023-06-01"]);
   });
 
+  test("does not double /v1 for an OpenAI-compatible endpoint that already has it", async () => {
+    const paths: string[] = [];
+    const base = await serve((request) => {
+      paths.push(new URL(request.url).pathname);
+      return Response.json({ data: [{ id: "x" }] });
+    });
+    const provider = makeProvider({ endpoints: { openaiCompatible: `${base}/v1` }, models: [] });
+
+    await fetchModels({ provider, protocol: "openai-compatible" });
+
+    expect(paths).toEqual(["/v1/models"]);
+  });
+
+  test("does not add another /v1 when the Anthropic endpoint already has a v1 segment", async () => {
+    const paths: string[] = [];
+    const base = await serve((request) => {
+      paths.push(new URL(request.url).pathname);
+      return Response.json({ data: [{ id: "x" }] });
+    });
+    const provider = makeProvider({ endpoints: { anthropic: `${base}/v1/anthropic` }, models: [] });
+
+    await fetchModels({ provider, protocol: "anthropic" });
+
+    expect(paths).toEqual(["/v1/anthropic/models"]);
+  });
+
+  test("uses /models when the Anthropic endpoint ends in /v1", async () => {
+    const paths: string[] = [];
+    const base = await serve((request) => {
+      paths.push(new URL(request.url).pathname);
+      return Response.json({ data: [{ id: "x" }] });
+    });
+    const provider = makeProvider({
+      endpoints: { anthropic: `${base}/anthropic/v1` },
+      models: [],
+    });
+
+    await fetchModels({ provider, protocol: "anthropic" });
+
+    expect(paths).toEqual(["/anthropic/v1/models"]);
+  });
+
   test("uses an x-api-key header when configured", async () => {
     let key = "";
     const base = await serve((request) => {

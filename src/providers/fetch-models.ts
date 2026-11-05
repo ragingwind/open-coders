@@ -66,11 +66,12 @@ export async function fetchModels(options: FetchModelsOptions): Promise<Model[]>
 function modelUrls(provider: Provider, endpoint: string, protocol: Protocol): string[] {
   if (provider.modelsUrl) return [provider.modelsUrl];
   const base = endpoint.replace(/\/+$/, "");
-  const candidates =
-    protocol === "anthropic"
-      ? [`${base}/v1/models`, `${base}/models`]
-      : [`${base}/models`, `${base}/v1/models`];
-  return [...new Set(candidates)];
+  const hasVersionSegment = /\/v1(?:\/|$)/.test(base);
+
+  if (protocol === "anthropic") {
+    return hasVersionSegment ? [`${base}/models`] : [`${base}/v1/models`, `${base}/models`];
+  }
+  return hasVersionSegment ? [`${base}/models`] : [`${base}/models`, `${base}/v1/models`];
 }
 
 function requestHeaders(

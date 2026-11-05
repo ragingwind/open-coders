@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { emptyConfig } from "../src/config/schema";
-import { mergeModels, providerIdFromName, roleAlternatives } from "../src/tui/config-form";
+import {
+  mergeModels,
+  providerIdFromName,
+  resolvedNameInput,
+  roleAlternatives,
+} from "../src/tui/config-form";
 import { makeProvider, model } from "./helpers";
 
 describe("providerIdFromName", () => {
@@ -51,5 +56,16 @@ describe("roleAlternatives", () => {
   test("returns nothing when the default is the only model", () => {
     const only = model("m1", "a");
     expect(roleAlternatives([only], only)).toEqual([]);
+  });
+});
+
+describe("resolvedNameInput", () => {
+  test("uses the suggestion when the input is empty", () => {
+    expect(resolvedNameInput("", "amber-fox")).toBe("amber-fox");
+    expect(resolvedNameInput(undefined, "amber-fox")).toBe("amber-fox");
+  });
+
+  test("keeps a typed value", () => {
+    expect(resolvedNameInput("mine", "amber-fox")).toBe("mine");
   });
 });

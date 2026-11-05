@@ -21,6 +21,7 @@ import { generateProfileName } from "./name-generator";
 import { requireTTY, unwrap } from "./prompts";
 
 const RESERVED_PROFILE_NAMES = new Set(["config", "help", "version"]);
+const DEFAULT_PROVIDER_NAME = "My Gateway";
 
 export interface ProfileDraft {
   profile: Profile;
@@ -247,6 +248,10 @@ async function promptAgent(initial?: string): Promise<AgentId> {
   return choice;
 }
 
+export function resolvedNameInput(value: string | undefined, fallback: string): string {
+  return value && value.length > 0 ? value : fallback;
+}
+
 async function promptProfileName(config: Config, suggested: string): Promise<string> {
   return unwrap(
     await p.text({
@@ -254,12 +259,13 @@ async function promptProfileName(config: Config, suggested: string): Promise<str
       placeholder: suggested,
       defaultValue: suggested,
       validate(value) {
-        if (!value) return "Enter a profile name";
-        if (RESERVED_PROFILE_NAMES.has(value)) return `"${value}" is reserved`;
-        if (!PROFILE_NAME_PATTERN.test(value)) {
+        const candidate = resolvedNameInput(value, suggested);
+        if (!candidate) return "Enter a profile name";
+        if (RESERVED_PROFILE_NAMES.has(candidate)) return `"${candidate}" is reserved`;
+        if (!PROFILE_NAME_PATTERN.test(candidate)) {
           return 'Use letters, digits, ".", "_" or "-", starting with a letter or digit';
         }
-        if (config.profiles[value]) return `Profile "${value}" already exists`;
+        if (config.profiles[candidate]) return `Profile "${candidate}" already exists`;
         return undefined;
       },
     }),
@@ -306,9 +312,12 @@ async function promptProvider(
   const name = unwrap(
     await p.text({
       message: "New provider name",
-      placeholder: "My Gateway",
-      defaultValue: "My Gateway",
-      validate: (value) => (value ? undefined : "Enter a name"),
+      placeholder: DEFAULT_PROVIDER_NAME,
+      defaultValue: DEFAULT_PROVIDER_NAME,
+      validate(value) {
+        const candidate = resolvedNameInput(value, DEFAULT_PROVIDER_NAME);
+        return candidate.trim() ? undefined : "Enter a name";
+      },
     }),
   );
   const id = providerIdFromName(name, config);
@@ -461,8 +470,8 @@ async function promptAuth(agent: AgentId, envDefault?: string): Promise<Auth> {
         placeholder: suggested,
         defaultValue: suggested,
         validate(value) {
-          if (!value) return "Enter an environment variable name";
-          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+          const candidate = resolvedNameInput(value, suggested);
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(candidate)) {
             return "Not a valid environment variable name";
           }
           return undefined;
