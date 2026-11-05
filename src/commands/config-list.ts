@@ -37,7 +37,7 @@ export async function configList(ctx: CliContext): Promise<number> {
   }
 
   for (const problem of validateConfig(config)) {
-    ctx.stderr.write(`warning: ${problem.path}: ${problem.message}\n`);
+    ctx.stderr.write(`${problem.severity}: ${problem.path}: ${problem.message}\n`);
   }
   return 0;
 }

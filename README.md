@@ -89,8 +89,14 @@ written with mode `0600`.
   `{ "source": "literal", "value": "..." }`. Prefer the environment variable.
 - `endpoints.anthropic` is the Claude Code form (no trailing `/v1`).
   `endpoints.openaiCompatible` is the OpenAI form (usually ends in `/v1`).
+- A custom provider needs at least one endpoint. Either endpoint may be
+  omitted, and model lists fall back to the other endpoint when the preferred
+  one is missing.
 - Profiles reference models by `Model.key`; each provider keeps one model
   catalog shared by its profiles.
+- Compatibility issues are saved as warnings (`config list` shows them) and
+  become errors when the profile is launched. For example, a claude profile can
+  be saved without an Anthropic endpoint, but it cannot run until one is added.
 
 ## Agent notes
 

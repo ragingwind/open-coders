@@ -30,37 +30,64 @@ export async function fetchModels(options: FetchModelsOptions): Promise<Model[]>
     return fetchFxModels(options.execFx);
   }
 
-  const protocol = options.protocol;
-  const endpoint =
-    protocol === "anthropic"
-      ? options.provider.endpoints.anthropic
-      : options.provider.endpoints.openaiCompatible;
-  if (!endpoint) {
-    throw new ConfigError(`provider has no ${protocol} endpoint to list models from`);
-  }
+  const { provider } = options;
+  const preferred = options.protocol;
+  const secondary: Protocol = preferred === "anthropic" ? "openai-compatible" : "anthropic";
+  const candidates = [
+    {
+      protocol: preferred,
+      endpoint:
+        preferred === "anthropic"
+          ? provider.endpoints.anthropic
+          : provider.endpoints.openaiCompatible,
+    },
+    {
+      protocol: secondary,
+      endpoint:
+        secondary === "anthropic"
+          ? provider.endpoints.anthropic
+          : provider.endpoints.openaiCompatible,
+    },
+  ].filter(
+    (candidate): candidate is { protocol: Protocol; endpoint: string } =>
+      candidate.endpoint !== undefined,
+  );
 
-  const urls = modelUrls(options.provider, endpoint, protocol);
-  const headers = requestHeaders(options.credential, options.provider, protocol);
+  if (candidates.length === 0) {
+    throw new ConfigError("provider has no endpoint to list models from");
+  }
+  if (provider.modelsUrl) candidates.length = 1;
+
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-
+  const tried = new Set<string>();
   const errors: string[] = [];
-  for (const url of urls) {
-    try {
-      const entries =
-        protocol === "anthropic"
-          ? await fetchAnthropicEntries(url, headers, fetchImpl, timeoutMs)
-          : await fetchOne(url, headers, fetchImpl, timeoutMs);
-      const models = toModels(entries);
-      if (models.length > 0) return models;
-      errors.push(`${url}: empty model list`);
-    } catch (error) {
-      if (error instanceof NotFound) continue;
-      errors.push(sanitize(errorMessage(error), options.credential));
+
+  for (const candidate of candidates) {
+    const urls = modelUrls(provider, candidate.endpoint, candidate.protocol);
+    const headers = requestHeaders(options.credential, provider, candidate.protocol);
+
+    for (const url of urls) {
+      if (tried.has(url)) continue;
+      tried.add(url);
+      try {
+        const entries =
+          candidate.protocol === "anthropic"
+            ? await fetchAnthropicEntries(url, headers, fetchImpl, timeoutMs)
+            : await fetchOne(url, headers, fetchImpl, timeoutMs);
+        const models = toModels(entries);
+        if (models.length > 0) return models;
+        errors.push(`${url}: empty model list`);
+      } catch (error) {
+        if (error instanceof NotFound) continue;
+        errors.push(sanitize(errorMessage(error), options.credential));
+      }
     }
   }
 
-  throw new ConfigError(`cannot list models; tried ${urls.join(", ")}\n${errors.join("\n")}`);
+  throw new ConfigError(
+    `cannot list models; tried ${[...tried].join(", ")}\n${errors.join("\n")}\nCheck the endpoint URL: the Anthropic base usually has no /v1, and the OpenAI-compatible base usually ends with /v1.`,
+  );
 }
 
 function modelUrls(provider: Provider, endpoint: string, protocol: Protocol): string[] {

@@ -321,7 +321,7 @@ async function promptProvider(
     }),
   );
   const id = providerIdFromName(name, config);
-  const provider = await promptNewProviderDetails(name, agent, flags, protocol);
+  const provider = await promptNewProviderDetails(name, agent, flags);
   return { id, provider, created: true };
 }
 
@@ -329,7 +329,6 @@ async function promptNewProviderDetails(
   name: string,
   agent: AgentId,
   flags: NewFlags,
-  protocol: Protocol | undefined,
 ): Promise<Provider> {
   if (agent === "fx") {
     p.log.info("fx 0.0.5 can only use the Vercel AI Gateway. A custom base URL is not supported.");
@@ -338,48 +337,28 @@ async function promptNewProviderDetails(
   }
 
   const endpoints: Provider["endpoints"] = {};
-  if (agent === "claude") {
-    endpoints.anthropic = unwrap(
-      await p.text({
-        message: "Anthropic endpoint (Claude Code format, without /v1)",
-        placeholder: "https://api.example.com/anthropic",
-        ...(flags.baseUrlAnthropic ? { initialValue: flags.baseUrlAnthropic } : {}),
-        validate: validateUrl,
-      }),
-    );
-    const openai = unwrap(
-      await p.text({
-        message: "OpenAI-compatible endpoint (optional, includes /v1)",
-        placeholder: "https://api.example.com/v1",
-        ...(flags.baseUrlOpenai ? { initialValue: flags.baseUrlOpenai } : {}),
-        validate: optionalUrl,
-      }),
-    );
-    if (openai) endpoints.openaiCompatible = openai;
-  } else {
-    const selectedProtocol = protocol ?? (await promptProtocol(flags.protocol, undefined));
-    const url = unwrap(
-      await p.text({
-        message:
-          selectedProtocol === "anthropic"
-            ? "Anthropic endpoint (Claude Code format, without /v1)"
-            : "OpenAI-compatible endpoint (includes /v1)",
-        placeholder:
-          selectedProtocol === "anthropic"
-            ? "https://api.example.com/anthropic"
-            : "https://api.example.com/v1",
-        ...(selectedProtocol === "anthropic"
-          ? flags.baseUrlAnthropic
-            ? { initialValue: flags.baseUrlAnthropic }
-            : {}
-          : flags.baseUrlOpenai
-            ? { initialValue: flags.baseUrlOpenai }
-            : {}),
-        validate: validateUrl,
-      }),
-    );
-    if (selectedProtocol === "anthropic") endpoints.anthropic = url;
-    else endpoints.openaiCompatible = url;
+  const anthropic = unwrap(
+    await p.text({
+      message: "Anthropic endpoint (optional, Claude Code format, without /v1)",
+      placeholder: "https://api.example.com/anthropic",
+      ...(flags.baseUrlAnthropic ? { initialValue: flags.baseUrlAnthropic } : {}),
+      validate: optionalUrl,
+    }),
+  );
+  if (anthropic) endpoints.anthropic = anthropic;
+
+  const openai = unwrap(
+    await p.text({
+      message: "OpenAI-compatible endpoint (optional, includes /v1)",
+      placeholder: "https://api.example.com/v1",
+      ...(flags.baseUrlOpenai ? { initialValue: flags.baseUrlOpenai } : {}),
+      validate: optionalUrl,
+    }),
+  );
+  if (openai) endpoints.openaiCompatible = openai;
+
+  if (!endpoints.anthropic && !endpoints.openaiCompatible) {
+    throw new ConfigError("at least one endpoint is required");
   }
 
   const auth = await promptAuth(agent, flags.apiKeyEnv);

@@ -87,9 +87,9 @@ describe("validateConfig", () => {
   test("reports claude with a non-custom provider", () => {
     const config = makeConfig();
     config.profiles.om = makeProfile({ provider: "fxgw" });
-    expect(validateConfig(config).map((problem) => problem.message)).toContain(
-      "claude requires a custom provider with an anthropic endpoint",
-    );
+    const problem = validateConfig(config).find((entry) => entry.path === "profiles.om.agent");
+    expect(problem?.message).toBe("claude requires a custom provider with an anthropic endpoint");
+    expect(problem?.severity).toBe("warning");
   });
 
   test("reports fx with a custom provider", () => {
@@ -98,6 +98,13 @@ describe("validateConfig", () => {
     expect(validateConfig(config).map((problem) => problem.message)).toContain(
       "fx requires a vercel-ai-gateway provider",
     );
+  });
+
+  test("marks broken references as errors", () => {
+    const config = makeConfig();
+    config.profiles.om = makeProfile({ provider: "missing" });
+    const problem = validateConfig(config).find((entry) => entry.path === "profiles.om.provider");
+    expect(problem?.severity).toBe("error");
   });
 
   test("emptyConfig is valid", () => {

@@ -132,6 +132,26 @@ describe("fetchModels", () => {
     expect(paths).toEqual(["/anthropic/v1/models"]);
   });
 
+  test("falls back to the other endpoint when the preferred one is missing", async () => {
+    const paths: string[] = [];
+    const base = await serve((request) => {
+      paths.push(new URL(request.url).pathname);
+      return Response.json({ data: [{ id: "x" }] });
+    });
+    const provider = makeProvider({ endpoints: { openaiCompatible: `${base}/v1` }, models: [] });
+
+    const models = await fetchModels({ provider, protocol: "anthropic" });
+
+    expect(models.map((model) => model.id)).toEqual(["x"]);
+    expect(paths).toEqual(["/v1/models"]);
+  });
+
+  test("rejects a provider without any endpoint", async () => {
+    const provider = makeProvider({ endpoints: {}, models: [] });
+    await expect(fetchModels({ provider, protocol: "openai-compatible" })).rejects.toThrow(
+      /no endpoint/,
+    );
+  });
   test("uses an x-api-key header when configured", async () => {
     let key = "";
     const base = await serve((request) => {
@@ -201,12 +221,5 @@ describe("fetchModels", () => {
         execFx: async () => "not json",
       }),
     ).rejects.toThrow(/invalid JSON/);
-  });
-
-  test("rejects a provider without an endpoint", async () => {
-    const provider = makeProvider({ endpoints: {}, models: [] });
-    await expect(fetchModels({ provider, protocol: "openai-compatible" })).rejects.toThrow(
-      /no openai-compatible endpoint/,
-    );
   });
 });

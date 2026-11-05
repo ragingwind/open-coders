@@ -1,4 +1,4 @@
-import { assertCompatible, findModel } from "../config/resolve";
+import { findModel } from "../config/resolve";
 import {
   AGENTS,
   type AgentId,
@@ -61,7 +61,7 @@ export async function configNew(argv: string[], ctx: CliContext): Promise<number
 
   const draft = await newProfileFlow(config, ctx, flags, yes);
   applyDraft(config, draft);
-  ensureValid(config);
+  ensureValid(config, ctx);
   await saveConfig(config, ctx.configPath);
   ctx.stdout.write(`saved profile "${draft.profile.name}"\n`);
   ctx.stdout.write(`launch it with: open-coders ${draft.profile.name}\n`);
@@ -108,9 +108,8 @@ async function createNonInteractive(
     ...(protocol ? { protocol } : {}),
   };
 
-  assertCompatible(profile, provider);
   config.profiles[name] = profile;
-  ensureValid(config);
+  ensureValid(config, ctx);
   await saveConfig(config, ctx.configPath);
   ctx.stdout.write(`saved profile "${name}"\n`);
   ctx.stdout.write(`launch it with: open-coders ${name}\n`);
@@ -123,18 +122,14 @@ function createProvider(displayName: string, agent: AgentId, flags: NewFlags): P
   }
 
   const endpoints: Provider["endpoints"] = {};
-  if (agent === "claude") {
+  if (flags.baseUrlAnthropic) {
     endpoints.anthropic = requireUrl("base-url-anthropic", flags.baseUrlAnthropic);
-    if (flags.baseUrlOpenai) {
-      endpoints.openaiCompatible = requireUrl("base-url-openai", flags.baseUrlOpenai);
-    }
-  } else {
-    const protocol = parseProtocol(flags.protocol);
-    if (protocol === "anthropic") {
-      endpoints.anthropic = requireUrl("base-url-anthropic", flags.baseUrlAnthropic);
-    } else {
-      endpoints.openaiCompatible = requireUrl("base-url-openai", flags.baseUrlOpenai);
-    }
+  }
+  if (flags.baseUrlOpenai) {
+    endpoints.openaiCompatible = requireUrl("base-url-openai", flags.baseUrlOpenai);
+  }
+  if (!endpoints.anthropic && !endpoints.openaiCompatible) {
+    throw new UsageError("provide --base-url-anthropic, --base-url-openai, or both");
   }
 
   const auth: Auth = flags.apiKeyEnv
@@ -156,12 +151,17 @@ function applyDraft(config: Config, draft: ProfileDraft): void {
   config.profiles[draft.profile.name] = draft.profile;
 }
 
-function ensureValid(config: Config): void {
+function ensureValid(config: Config, ctx: CliContext): void {
   const problems = validateConfig(config);
-  if (problems.length > 0) {
+  const errors = problems.filter((problem) => problem.severity === "error");
+  if (errors.length > 0) {
     throw new ConfigError(
-      `refusing to save an invalid config:\n${problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n")}`,
+      `refusing to save an invalid config:\n${errors.map((problem) => `${problem.path}: ${problem.message}`).join("\n")}`,
     );
+  }
+
+  for (const warning of problems) {
+    ctx.stderr.write(`warning: ${warning.path}: ${warning.message}\n`);
   }
 }
 

@@ -96,6 +96,7 @@ export type Config = z.infer<typeof configSchema>;
 export interface Problem {
   path: string;
   message: string;
+  severity: "error" | "warning";
 }
 
 export function parseConfig(raw: unknown): Config {
@@ -121,6 +122,7 @@ export function validateConfig(config: Config): Problem[] {
         problems.push({
           path: `providers.${id}.models`,
           message: `duplicate model key "${model.key}"`,
+          severity: "error",
         });
       }
       seen.add(model.key);
@@ -134,6 +136,7 @@ export function validateConfig(config: Config): Problem[] {
       problems.push({
         path: `providers.${id}.endpoints`,
         message: "custom provider needs an anthropic or openaiCompatible endpoint",
+        severity: "error",
       });
     }
 
@@ -144,6 +147,7 @@ export function validateConfig(config: Config): Problem[] {
       problems.push({
         path: `providers.${id}.endpoints`,
         message: "vercel-ai-gateway providers do not use custom endpoints",
+        severity: "error",
       });
     }
   }
@@ -153,6 +157,7 @@ export function validateConfig(config: Config): Problem[] {
       problems.push({
         path: `profiles.${name}.name`,
         message: `profile name must match its key "${name}"`,
+        severity: "error",
       });
     }
 
@@ -161,6 +166,7 @@ export function validateConfig(config: Config): Problem[] {
       problems.push({
         path: `profiles.${name}.provider`,
         message: `unknown provider "${profile.provider}"`,
+        severity: "error",
       });
       continue;
     }
@@ -170,6 +176,7 @@ export function validateConfig(config: Config): Problem[] {
       problems.push({
         path: `profiles.${name}.model`,
         message: `unknown model key "${profile.model}" in provider "${profile.provider}"`,
+        severity: "error",
       });
     }
     for (const role of CLAUDE_ROLES) {
@@ -178,6 +185,7 @@ export function validateConfig(config: Config): Problem[] {
         problems.push({
           path: `profiles.${name}.roles.${role}`,
           message: `unknown model key "${roleModel}" in provider "${profile.provider}"`,
+          severity: "error",
         });
       }
     }
@@ -187,6 +195,7 @@ export function validateConfig(config: Config): Problem[] {
         problems.push({
           path: `profiles.${name}.agent`,
           message: "claude requires a custom provider with an anthropic endpoint",
+          severity: "warning",
         });
       }
     } else if (profile.agent === "opencode") {
@@ -199,6 +208,7 @@ export function validateConfig(config: Config): Problem[] {
         problems.push({
           path: `profiles.${name}.protocol`,
           message: `OpenCode requires a custom provider with a ${protocol} endpoint`,
+          severity: "warning",
         });
       }
     } else if (profile.agent === "fx") {
@@ -206,6 +216,7 @@ export function validateConfig(config: Config): Problem[] {
         problems.push({
           path: `profiles.${name}.agent`,
           message: "fx requires a vercel-ai-gateway provider",
+          severity: "warning",
         });
       }
     }

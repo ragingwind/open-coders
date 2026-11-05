@@ -189,6 +189,49 @@ describe("config new (non-interactive)", () => {
     expect(result.stderr).toContain("--agent must be one of");
   });
 
+  test("saves a claude profile without an anthropic endpoint and warns", async () => {
+    const path = await tempPath();
+    const result = await run(path, [
+      "config",
+      "new",
+      "--agent",
+      "claude",
+      "--name",
+      "om",
+      "--provider",
+      "gw",
+      "--model",
+      "model-1",
+      "--base-url-openai",
+      "https://gw.example.com/v1",
+      "--api-key-env",
+      "GW_KEY",
+    ]);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain("warning: profiles.om.agent");
+    const config = await loadConfig(path);
+    expect(config.providers.gw?.endpoints.anthropic).toBeUndefined();
+    expect(config.providers.gw?.endpoints.openaiCompatible).toBe("https://gw.example.com/v1");
+  });
+
+  test("requires at least one endpoint when creating a provider", async () => {
+    const result = await run(await tempPath(), [
+      "config",
+      "new",
+      "--agent",
+      "claude",
+      "--name",
+      "om",
+      "--provider",
+      "gw",
+      "--model",
+      "model-1",
+    ]);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("provide --base-url-anthropic");
+  });
+
   test("reuses an existing provider and adds the requested model", async () => {
     const path = await tempPath();
     await saveConfig(makeConfig(), path);
@@ -234,5 +277,18 @@ describe("launching", () => {
     const result = await run(path, ["om"], { env: {} });
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("GW_KEY is not set");
+  });
+
+  test("fails when a claude profile has no anthropic endpoint", async () => {
+    const path = await tempPath();
+    const config = makeConfig();
+    config.providers.gw = makeProvider({
+      endpoints: { openaiCompatible: "https://gw.example.com/v1" },
+    });
+    await saveConfig(config, path);
+
+    const result = await run(path, ["om"], { env: { GW_KEY: "k" } });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("anthropic endpoint");
   });
 });

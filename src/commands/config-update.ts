@@ -19,10 +19,14 @@ export async function configUpdate(argv: string[], ctx: CliContext): Promise<num
   if (draft.provider) config.providers[draft.providerId] = draft.provider;
 
   const problems = validateConfig(config);
-  if (problems.length > 0) {
+  const errors = problems.filter((problem) => problem.severity === "error");
+  if (errors.length > 0) {
     throw new ConfigError(
-      `refusing to save an invalid config:\n${problems.map((problem) => `${problem.path}: ${problem.message}`).join("\n")}`,
+      `refusing to save an invalid config:\n${errors.map((problem) => `${problem.path}: ${problem.message}`).join("\n")}`,
     );
+  }
+  for (const warning of problems) {
+    ctx.stderr.write(`warning: ${warning.path}: ${warning.message}\n`);
   }
 
   await saveConfig(config, ctx.configPath);
